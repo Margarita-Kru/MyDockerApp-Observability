@@ -45,7 +45,7 @@ docker compose up -d --build
 ```
 
 ## Доступные интерфейсы после запуска
-*   **API (OpenAPI спецификация): http://localhost:8080/openapi/v1.json
+*   **API (OpenAPI спецификация):** `http://localhost:8080/openapi/v1.json`
 *   **Тестовый эндпоинт:** `http://localhost:8080/weatherforecast`
 *   **Health Check:** `http://localhost:8080/health`
 *   **Graylog (Логи):** `http://localhost:9000` (admin / admin)
