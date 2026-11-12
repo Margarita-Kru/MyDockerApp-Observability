@@ -1,0 +1,24 @@
+image: mcr.microsoft.com/dotnet/sdk:10.0
+
+stages:
+  - build
+  - test
+  - publish
+
+build_job:
+  stage: build
+  script:
+    - dotnet restore
+    - dotnet build -c Release
+test_job:
+  stage: test
+  script:
+    - dotnet test --no-build -c Release
+
+publish_job:
+  stage: publish
+  script:
+    - echo "Сборка Docker-образа..."
+    - docker build -t my-app:latest .
+  only:
+    - main

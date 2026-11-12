@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../MyDockerApp.Tests/MyDockerApp.Tests.csproj" Id="e27f9820-0cb9-4cb7-85b9-1c84e57a2b45" />
+  <Project Path="MyDockerApp.csproj" />
+</Solution>

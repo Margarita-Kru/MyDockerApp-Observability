@@ -1,0 +1,144 @@
+services:
+  web:
+    build: ./MyDockerApp
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=mydb;Username=myuser;Password=${DB_PASSWORD};Gss Encryption Mode=Disable
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    networks:
+      - graylog
+
+  db:
+    image: postgres:18
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=mydb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - graylog
+
+  mongo:
+    image: mongo:9.0.4
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - graylog
+
+  datanode:
+    image: graylog/graylog-datanode:7.1
+    hostname: datanode
+    environment:
+      - GRAYLOG_DATANODE_PASSWORD_SECRET=${DATANODE_PASSWORD_SECRET}
+      - GRAYLOG_DATANODE_MONGODB_URI=mongodb://mongo:27017/graylog
+    volumes:
+      - datanode_data:/var/lib/graylog-datanode
+    networks:
+      - graylog
+
+  graylog:
+    image: graylog/graylog:7.1
+    environment:
+      - GRAYLOG_PASSWORD_SECRET=${GRAYLOG_PASSWORD_SECRET}
+      - GRAYLOG_ROOT_PASSWORD_SHA2=${GRAYLOG_ROOT_PASSWORD_SHA2}
+      - GRAYLOG_HTTP_EXTERNAL_URI=http://localhost:9000/
+      - GRAYLOG_MONGODB_URI=mongodb://mongo:27017/graylog
+    entrypoint: /usr/bin/tini -- wait-for-it mongo:27017 -- /docker-entrypoint.sh
+    ports:
+      - "9000:9000"
+      - "12201:12201/udp"
+    depends_on:
+      - mongo
+      - datanode
+    networks:
+      - graylog
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - graylog
+
+  grafana:
+    image: grafana/grafana:13.2
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    networks:
+      - graylog
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - graylog
+
+  kafka:
+    image: confluentinc/cp-kafka:8.4.0
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - graylog
+
+volumes:
+  postgres_data:
+  mongo_data:
+  datanode_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  graylog:
+    driver: bridge

@@ -1,0 +1,19 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: kafka-consumer-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: my-app-deployment   # Имя Deployment
+  minReplicaCount: 0          # Может масштабироваться до нуля при простое
+  maxReplicaCount: 10
+  pollingInterval: 15         # Как часто KEDA проверяет метрику (сек)
+  cooldownPeriod: 30          # Через сколько секунд простоя снижать реплики
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka:9092
+        consumerGroup: my-consumer-group
+        topic: my-topic
+        lagThreshold: "100" 
